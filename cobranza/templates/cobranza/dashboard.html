@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Panel de Control - Desarrollos e Inversiones, S.A.</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+    <style>
+        .card-stat { border: none; border-radius: 12px; transition: transform 0.2s; }
+        .card-stat:hover { transform: translateY(-5px); }
+        .table-container { border-radius: 12px; overflow: hidden; }
+    </style>
+</head>
+<body class="bg-light">
+
+<nav class="navbar navbar-expand-lg navbar-dark bg-dark shadow-sm mb-4">
+    <div class="container">
+        <a class="navbar-brand fw-bold" href="#">DESARROLLOS E INVERSIONES, S.A.</a>
+        <div class="d-flex align-items-center">
+            <span class="text-light me-3 small">Bienvenido, <strong>{{ perfil.user.username }}</strong></span>
+            <form action="{% url 'logout' %}" method="post" class="m-0">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-outline-danger btn-sm">Cerrar Sesión</button>
+            </form>
+        </div>
+    </div>
+</nav>
+
+<div class="container">
+    <div class="row g-3 mb-4">
+        <div class="col-md-4">
+            <div class="card card-stat shadow-sm bg-primary text-white h-100">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="text-uppercase small mb-1 opacity-75">Canon Mensual</h6>
+                            <h2 class="mb-0 fw-bold">${{ perfil.canon_mensual }}</h2>
+                        </div>
+                        <i class="bi bi-building h1 opacity-50"></i>
+                    </div>
+                    <div class="mt-2 small">Local: {{ perfil.numero_local }}</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card card-stat shadow-sm bg-dark text-white h-100">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="text-uppercase small mb-1 opacity-75">Tasa del Día</h6>
+                            <h2 class="mb-0 fw-bold">{{ tasa }} Bs.</h2>
+                        </div>
+                        <i class="bi bi-currency-exchange h1 opacity-50"></i>
+                    </div>
+                    <div class="mt-2 small">Referencial Banco Central</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card card-stat shadow-sm bg-success text-white h-100">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="text-uppercase small mb-1 opacity-75">Monto en Bs.</h6>
+                            <h2 class="mb-0 fw-bold">{{ monto_local_total }} Bs.</h2>
+                        </div>
+                        <i class="bi bi-wallet2 h1 opacity-50"></i>
+                    </div>
+                    <div class="mt-2 small text-truncate">Total estimado a transferir</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-lg-4 mb-4">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-header bg-white py-3">
+                    <h5 class="mb-0 fw-bold text-dark"><i class="bi bi-send me-2 text-primary"></i>Reportar Pago</h5>
+                </div>
+                <div class="card-body">
+                    <form method="post">
+                        {% csrf_token %}
+                        <div class="p-2 bg-light rounded mb-3">
+                            {{ form.as_p }}
+                        </div>
+                        <button type="submit" class="btn btn-primary w-100 py-2 fw-bold shadow-sm">
+                            <i class="bi bi-check-lg me-2"></i>Registrar Pago
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-8 mb-4">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0 fw-bold text-dark"><i class="bi bi-list-check me-2 text-primary"></i>Mis Pagos</h5>
+                    <span class="badge bg-light text-dark border">Historial Reciente</span>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+    <table class="table align-middle">
+        <thead class="bg-light text-muted small">
+            <tr>
+                <th class="ps-4">FECHA</th>
+                <th>REF. BANCARIA</th>
+                <th>MONTO ($)</th>
+                <th>MONTO Bs.</th>
+                <th class="text-center">ESTADO</th>
+                <th class="text-center">ACCIONES</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for pago in pagos %}
+            <tr>
+                <td class="ps-4">{{ pago.fecha_pago }}</td>
+                <td><span class="badge bg-light text-dark border">{{ pago.referencia_bancaria }}</span></td>
+                <td>${{ pago.monto_usd|stringformat:".2f" }}</td>
+                <td>{{ pago.monto_divisa|stringformat:".2f" }} Bs.</td>
+                <td class="text-center">
+                    {% if pago.verificado %}
+                        <span class="badge bg-success-subtle text-success border border-success px-3">Verificado</span>
+                    {% else %}
+                        <span class="badge bg-warning-subtle text-warning-emphasis border border-warning px-3">Pendiente</span>
+                    {% endif %}
+                </td>
+                <td class="text-center">
+                    {% if not pago.verificado %}
+                        <a href="{% url 'eliminar_pago' pago.id %}" 
+                           class="btn btn-sm btn-outline-danger" 
+                           onclick="return confirm('¿Deseas eliminar este reporte de pago?')">
+                            <i class="bi bi-trash"></i>
+                        </a>
+                    {% else %}
+                        <i class="bi bi-patch-check-fill text-success" title="Pago Verificado"></i>
+                    {% endif %}
+                </td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="6" class="text-center text-muted py-4">No hay pagos registrados.</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<footer class="py-4 text-center text-muted small">
+    &copy; 2026 Desarrollos e Inversiones, S.A. | Todos los derechos reservados.
+</footer>
+
+</body>
+</html>
