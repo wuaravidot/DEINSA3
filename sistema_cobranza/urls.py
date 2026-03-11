@@ -17,15 +17,9 @@ Including another URLconf
 from django.contrib import admin
 from django.urls import path, include
 
-# Importamos ambas funciones de tu app cobranza
-from cobranza.views import dashboard_inquilino, eliminar_pago 
-
 urlpatterns = [
     path('admin/', admin.site.urls),
-    path('dashboard/', dashboard_inquilino, name='dashboard'),
-    
-    # NUEVA RUTA: Para que el botón de borrar de la tabla funcione
-    path('pago/eliminar/<int:pago_id>/', eliminar_pago, name='eliminar_pago'),
-    
+    # Delegamos todas las rutas a la app cobranza
+    path('', include('cobranza.urls')), 
     path('accounts/', include('django.contrib.auth.urls')),
 ]

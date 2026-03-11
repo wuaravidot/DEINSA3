@@ -14,7 +14,7 @@ def dashboard_inquilino(request):
     
     # --- PASO 2: CÁLCULOS DE SALDO (USD y BS) ---
     pagos = Pago.objects.filter(inquilino=request.user).order_by('-fecha_pago')
-    total_pagado_usd = sum(p.monto_usd for p in pagos if p.verificado)
+    total_pagado_usd = sum((p.monto_usd or Decimal('0.00')) for p in pagos if p.verificado)
     
     saldo_restante_usd = perfil.canon_mensual - total_pagado_usd
     # Convertimos a Decimal para el cálculo de bolívares
