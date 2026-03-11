@@ -1,62 +1,64 @@
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
+from django.contrib import messages
 from .models import PerfilInquilino, Pago, TasaCambio
 from .forms import PagoForm
-from django.db.models import Sum
+from decimal import Decimal, ROUND_HALF_UP # IMPORTANTE PARA FINANZAS
 
 @login_required
 def dashboard_inquilino(request):
-    # --- PASO 0: DISTINCIÓN DE USUARIOS ---
-    # Si el usuario es administrador (Staff), lo mandamos al panel azul
-    if request.user.is_staff:
-        return redirect('/admin/')
-
-    # Intentamos obtener el perfil del inquilino
-    try:
-        perfil = PerfilInquilino.objects.get(user=request.user)
-    except PerfilInquilino.DoesNotExist:
-        # Si no es admin pero no tiene perfil, lo mandamos al login por seguridad
-        return redirect('/accounts/login/')
-
-    # --- TU CÓDIGO DE CÁLCULOS (PASOS 1, 2 y 3) ---
+    # --- PASO 1: OBTENER PERFIL Y TASA ---
+    perfil = get_object_or_404(PerfilInquilino, user=request.user)
+    tasa_obj = TasaCambio.objects.latest('fecha_actualizacion')
+    tasa_valor = tasa_obj.valor
     
-    # 1. Obtener Tasa de Cambio
-    try:
-        tasa_obj = TasaCambio.objects.latest('fecha_actualizacion')
-        tasa_valor = float(tasa_obj.valor)
-    except TasaCambio.DoesNotExist:
-        tasa_valor = 1.0
-
-    # 2. Historial de Pagos y Notificaciones (Círculo Amarillo)
+    # --- PASO 2: CÁLCULOS DE SALDO (USD y BS) ---
     pagos = Pago.objects.filter(inquilino=request.user).order_by('-fecha_pago')
+    total_pagado_usd = sum(p.monto_usd for p in pagos if p.verificado)
+    
+    saldo_restante_usd = perfil.canon_mensual - total_pagado_usd
+    # Convertimos a Decimal para el cálculo de bolívares
+    saldo_restante_bs = saldo_restante_usd * Decimal(str(tasa_valor))
+    
     cantidad_pendientes = pagos.filter(verificado=False).count()
 
-    # 3. Cálculo de Saldo (Solo los VERIFICADOS restan de la deuda)
-    pagos_verificados = pagos.filter(verificado=True).aggregate(Sum('monto_usd'))['monto_usd__sum'] or 0
-    saldo_restante_usd = float(perfil.canon_mensual) - float(pagos_verificados)
-    saldo_restante_bs = saldo_restante_usd * tasa_valor
-
-    # --- PASO 4: PROCESAR EL FORMULARIO ---
+    # --- PASO 3: PROCESAR EL FORMULARIO (POST) ---
     if request.method == 'POST':
         form = PagoForm(request.POST)
         if form.is_valid():
             pago = form.save(commit=False)
-            pago.inquilino = request.user
-            monto = float(pago.monto_reportado)
+            
+            # Convertimos entradas a Decimal para evitar el TypeError
+            # Usamos str() para que el valor sea exacto
+            monto_input = Decimal(str(pago.monto_reportado))
+            tasa_dec = Decimal(str(tasa_valor))
+            formato = Decimal('0.00')
+
+            # Guardamos el monto reportado con sus dos ceros (.00)
+            pago.monto_reportado = monto_input.quantize(formato)
 
             if pago.moneda == 'BS':
-                pago.monto_divisa = monto
-                pago.monto_usd = monto / tasa_valor
+                # El usuario pagó en Bolívares
+                pago.monto_bolivares = monto_input.quantize(formato)
+                # Calculamos su equivalente en USD para el saldo
+                pago.monto_usd = (monto_input / tasa_dec).quantize(formato, rounding=ROUND_HALF_UP)
             else:
-                pago.monto_usd = monto
-                pago.monto_divisa = monto * tasa_valor
+                # El usuario pagó en Dólares
+                pago.monto_usd = monto_input.quantize(formato)
+                # Calculamos su equivalente en BS para el registro contable
+                pago.monto_bolivares = (monto_input * tasa_dec).quantize(formato)
+
+            # ASIGNACIÓN CORRECTA: Debe ser la instancia de User, no de Perfil
+            pago.inquilino = perfil.user 
             
             pago.save()
+            messages.success(request, f"Pago de {pago.monto_reportado} {pago.moneda} reportado con éxito.")
             return redirect('dashboard')
     else:
         form = PagoForm()
 
-    # --- PASO 5: RENDERIZAR TODO AL HTML ---
+    # --- PASO 4: RENDERIZAR AL HTML ---
+    # Nota: Usamos 'cobranza/dashboard.html' si usas subcarpetas
     return render(request, 'cobranza/dashboard.html', {
         'perfil': perfil,
         'pagos': pagos,
@@ -67,10 +69,12 @@ def dashboard_inquilino(request):
         'cantidad_pendientes': cantidad_pendientes
     })
 
-# No olvides mantener la función de eliminar abajo
 @login_required
 def eliminar_pago(request, pago_id):
     pago = get_object_or_404(Pago, id=pago_id, inquilino=request.user)
     if not pago.verificado:
         pago.delete()
+        messages.warning(request, "El reporte de pago ha sido eliminado.")
+    else:
+        messages.error(request, "No puedes eliminar un pago que ya ha sido verificado.")
     return redirect('dashboard')
