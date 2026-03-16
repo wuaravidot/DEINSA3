@@ -9,12 +9,14 @@ class InquilinoAdmin(admin.ModelAdmin):
 
 @admin.register(Pago)
 class PagoAdmin(admin.ModelAdmin):
+
     # Añadimos 'moneda' y 'verificado' para que puedas gestionar los abonos
     list_display = ('inquilino', 'fecha_pago', 'monto_reportado', 'moneda', 'monto_usd', 'verificado')
     list_filter = ('verificado', 'moneda', 'fecha_pago')
     # Esto te permite marcar como verificado directamente desde la lista
     list_editable = ('verificado',) 
+    search_fields = ('inquilino__username','referencia_bancaria')
 
 @admin.register(TasaCambio)
 class TasaCambioAdmin(admin.ModelAdmin):
-    list_display = ('valor', 'fecha_actualizacion')
+    list_display = ('valor', 'fecha_actualizacion')     

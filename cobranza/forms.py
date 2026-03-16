@@ -18,3 +18,4 @@ class PagoForm(forms.ModelForm):
             'monto_reportado': 'Monto pagado',
             'referencia_bancaria': 'Nro. de Referencia',
         }
+        
